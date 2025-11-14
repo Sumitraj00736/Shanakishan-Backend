@@ -11,6 +11,8 @@ const ProductSchema = new mongoose.Schema({
   reservedUnits: { type: Number, default: 0 },      // units reserved (pending or confirmed)
   basePrice: { type: Number, required: true },     // non-member price
   memberPrice: { type: Number },                    // member price
+  description: String,
+  features: [String],
   refundableDeposit: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true }
 }, { timestamps: true });

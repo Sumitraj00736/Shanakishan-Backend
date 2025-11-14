@@ -35,21 +35,33 @@ exports.verifyPayment = async (req,res) => {
   res.json({ message: 'Payment verified and booking confirmed', bookingId: booking._id });
 };
 
-exports.cancelBooking = async (req,res) => {
+
+// admin cancel booking
+exports.cancelBooking = async (req, res) => {
   const { id } = req.params;
   const { reason } = req.body;
-  const booking = await Booking.findById(id);
-  if(!booking) return res.status(404).json({ message: 'Booking not found' });
-  if(booking.status === 'cancelled') return res.json({ message: 'Already cancelled' });
 
-  // decrement reservedUnits on product
-  await Product.findByIdAndUpdate(booking.productId, { $inc: { reservedUnits: -(booking.quantity || 1) } });
+  try {
+    const booking = await Booking.findById(id);
+    if (!booking) return res.status(404).json({ success:false, message: 'Booking not found' });
 
-  booking.status = 'cancelled';
-  booking.adminNotes = reason || 'Cancelled by admin';
-  await booking.save();
-  res.json({ message: 'Booking cancelled' });
+    if (booking.status === 'cancelled') 
+      return res.json({ success:true, message: 'Booking is already cancelled' });
+
+    // Mark booking as cancelled
+    booking.status = 'cancelled';
+    booking.adminNotes = reason || 'Cancelled by admin';
+    await booking.save();
+
+    // No need to update reservedUnits, because availability is dynamically calculated from bookings
+
+    res.json({ success:true, message: 'Booking cancelled successfully', booking });
+  } catch (error) {
+    console.error("Error cancelling booking:", error);
+    res.status(500).json({ success:false, message: 'Server error', error: error.message });
+  }
 };
+
 
 // product create/update
 exports.createProduct = async (req,res) => {

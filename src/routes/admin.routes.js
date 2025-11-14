@@ -4,6 +4,7 @@ const adminCtrl = require('../controllers/admin.controller');
 const categoryCtrl = require('../controllers/category.controller');
 const supportCtrl = require('../controllers/support.controller');
 const memberCtrl = require('../controllers/member.controller');
+const productCtrl = require('../controllers/product.controller');
 const { adminAuth } = require('../middlewares/auth');
 
 // -------- Auth --------
@@ -15,8 +16,11 @@ router.get('/bookings/:id', adminAuth, adminCtrl.getBooking);
 router.post('/bookings/:id/verify-payment', adminAuth, adminCtrl.verifyPayment);
 router.post('/bookings/:id/cancel', adminAuth, adminCtrl.cancelBooking);
 
+
+
+
 // -------- Products --------
-router.post('/products', adminAuth, adminCtrl.createProduct);
+router.post('/products', adminAuth, productCtrl.createProduct);
 router.put('/products/:id', adminAuth, adminCtrl.updateProduct);
 router.delete('/products/:id', adminAuth, adminCtrl.deleteProduct); // optional delete
 
