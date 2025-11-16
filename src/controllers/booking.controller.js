@@ -57,8 +57,12 @@ exports.createBooking = async (req, res) => {
     }
 
     const start = new Date(startDateTime);
+    console.log("start:", start);
     const end = new Date(endDateTime);
+    console.log("end:", end);
     if (end <= start) {
+      console.log("Invalid date range: end is before or equal to start");
+      console.log("start:", start, "end:", end);
       return res.status(400).json({ success: false, message: "End time must be after start time" });
     }
 
@@ -93,6 +97,7 @@ exports.createBooking = async (req, res) => {
 
     // -------- 4. Calculate price per hour and total rent --------
     const diffHours = Math.ceil((end - start) / (1000 * 60 * 60)); // round up hours
+    console.log("diffHours:", diffHours);
     const pricePerHour = memberId && product.memberPrice ? product.memberPrice : product.basePrice;
 
     if (!pricePerHour || pricePerHour <= 0) {

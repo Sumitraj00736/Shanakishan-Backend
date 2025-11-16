@@ -6,7 +6,7 @@ const supportCtrl = require('../controllers/support.controller');
 const memberCtrl = require('../controllers/member.controller');
 const productCtrl = require('../controllers/product.controller');
 const { adminAuth } = require('../middlewares/auth');
-
+const upload = require('../middlewares/upload');
 // -------- Auth --------
 router.post('/auth/login', authCtrl.adminLogin);
 
@@ -20,7 +20,7 @@ router.post('/bookings/:id/cancel', adminAuth, adminCtrl.cancelBooking);
 
 
 // -------- Products --------
-router.post('/products', adminAuth, productCtrl.createProduct);
+router.post('/products', adminAuth, upload.array('images', 10), productCtrl.createProduct);
 router.put('/products/:id', adminAuth, adminCtrl.updateProduct);
 router.delete('/products/:id', adminAuth, adminCtrl.deleteProduct); // optional delete
 
