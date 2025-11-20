@@ -6,6 +6,7 @@ const SupportSchema = new mongoose.Schema({
   phone: { type: String, required: true },
   email: { type: String},
   message: { type: String, required: true },
+  memberId: String,
   adminMessage: { type: String, default: ""},
   status: { type: String, enum: ['pending','in-progress','resolved'], default: 'pending' },
   createdAt: { type: Date, default: Date.now }

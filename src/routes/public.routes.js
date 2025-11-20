@@ -12,6 +12,6 @@ router.get('/products/:id', productCtrl.getProduct);
 router.post('/members/login',memberAuth, memberCtrl.memberLogin);
 router.post('/bookings', memberAuth, bookingCtrl.createBooking);
 router.get('/bookings/:id/status', bookingCtrl.getBookingStatus);
-router.post('/support', supportCtrl.createTicket);
+router.post('/support', memberAuth ,supportCtrl.createTicket);
 
 module.exports = router;

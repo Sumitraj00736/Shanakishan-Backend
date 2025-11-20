@@ -5,6 +5,8 @@ const MemberSchema = new mongoose.Schema({
   name: String,
   phone: String,
   email: String,
+  memberId: String,
+
   status: { type: String, enum: ['active','suspended','expired'], default: 'active' },
   validUntil: Date,
   discountPercent: { type: Number, default: 0 }
