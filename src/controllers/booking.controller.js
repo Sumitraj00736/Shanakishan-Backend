@@ -9,7 +9,6 @@ function datesOverlap(aStart, aEnd, bStart, bEnd) {
   return aStart <= bEnd && bStart <= aEnd;
 }
 
-
 // helper to compute reserved units for a product in date-range
 async function sumReservedForRange(productId, startDate, endDate) {
   const bookings = await Booking.find({
@@ -36,7 +35,7 @@ exports.createBooking = async (req, res) => {
       endDateTime,
       userName,
       userPhone,
-      userEmail
+      userEmail,
     } = req.body;
 
     // Logged-in member (if any)
@@ -44,16 +43,22 @@ exports.createBooking = async (req, res) => {
 
     // -------- 1. Validate required fields --------
     if (!productId || !quantity || !startDateTime || !endDateTime) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required fields" });
     }
     if (!userName || !userPhone) {
-      return res.status(400).json({ success: false, message: "User details required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "User details required" });
     }
 
     // -------- 2. Find Product --------
     const product = await Product.findById(productId);
     if (!product || !product.isActive) {
-      return res.status(404).json({ success: false, message: "Product not found or inactive" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found or inactive" });
     }
 
     const start = new Date(startDateTime);
@@ -63,7 +68,9 @@ exports.createBooking = async (req, res) => {
     if (end <= start) {
       console.log("Invalid date range: end is before or equal to start");
       console.log("start:", start, "end:", end);
-      return res.status(400).json({ success: false, message: "End time must be after start time" });
+      return res
+        .status(400)
+        .json({ success: false, message: "End time must be after start time" });
     }
 
     // -------- 3. Check overlapping bookings --------
@@ -73,40 +80,56 @@ exports.createBooking = async (req, res) => {
           productId: product._id,
           status: { $in: ["pending", "confirmed"] },
           $or: [
-            { startDateTime: { $lt: end }, endDateTime: { $gt: start } } // overlap condition
-          ]
-        }
+            { startDateTime: { $lt: end }, endDateTime: { $gt: start } }, // overlap condition
+          ],
+        },
       },
       {
         $group: {
           _id: null,
-          totalReserved: { $sum: "$quantity" }
-        }
-      }
+          totalReserved: { $sum: "$quantity" },
+        },
+      },
     ]);
 
-    const reservedUnitsDuringRequestedTime = overlappingBookings[0]?.totalReserved || 0;
-    const availableUnits = product.totalUnits - product.maintenanceUnits - reservedUnitsDuringRequestedTime;
+    const reservedUnitsDuringRequestedTime =
+      overlappingBookings[0]?.totalReserved || 0;
+    const availableUnits =
+      product.totalUnits -
+      product.maintenanceUnits -
+      reservedUnitsDuringRequestedTime;
 
     if (availableUnits < quantity) {
       return res.status(400).json({
         success: false,
-        message: `Only ${availableUnits} unit(s) available for the selected time`
+        message: `Only ${availableUnits} unit(s) available for the selected time`,
       });
     }
 
     // -------- 4. Calculate price per hour and total rent --------
-    const diffHours = Math.ceil((end - start) / (1000 * 60 * 60)); // round up hours
+    // -------- 4. Calculate price per hour and total rent --------
+    let diffHours = (end - start) / (1000 * 60 * 60); // actual hours, can be fractional
+    if (diffHours < 1) diffHours = 1; // minimum booking 1 hour
     console.log("diffHours:", diffHours);
-    const pricePerHour = memberId && product.memberPrice ? product.memberPrice : product.basePrice;
+
+    const pricePerHour =
+      memberId && product.memberPrice ? product.memberPrice : product.basePrice;
 
     if (!pricePerHour || pricePerHour <= 0) {
-      return res.status(400).json({ success: false, message: "Price per hour is missing for this product" });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Price per hour is missing for this product",
+        });
     }
 
-    const totalRent = pricePerHour * diffHours * quantity;
+    const totalRent = pricePerHour * diffHours * quantity; // can now include fractional hours
+
     if (!totalRent || totalRent <= 0) {
-      return res.status(400).json({ success: false, message: "Total rent calculation failed" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Total rent calculation failed" });
     }
 
     // -------- 5. Create Booking --------
@@ -123,23 +146,22 @@ exports.createBooking = async (req, res) => {
       userEmail,
       memberId,
       refundableDeposit: product.refundableDeposit,
-      status: "pending" // admin can confirm payment if needed
+      status: "pending", // admin can confirm payment if needed
     });
 
     // -------- 6. Response --------
     return res.json({
       success: true,
       message: "Booking created successfully",
-      booking
+      booking,
     });
-
   } catch (err) {
     console.error("Error creating booking:", err);
-    return res.status(500).json({ success: false, message: "Server error", error: err.message });
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error", error: err.message });
   }
 };
-
-
 
 // public endpoint to check status
 exports.getBookingStatus = async (req, res) => {
