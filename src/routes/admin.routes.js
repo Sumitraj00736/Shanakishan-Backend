@@ -16,9 +16,6 @@ router.get('/bookings/:id', adminAuth, adminCtrl.getBooking);
 router.post('/bookings/:id/verify-payment', adminAuth, adminCtrl.verifyPayment);
 router.post('/bookings/:id/cancel', adminAuth, adminCtrl.cancelBooking);
 
-
-
-
 // -------- Products --------
 router.post('/products', adminAuth, upload.array('images', 10), productCtrl.createProduct);
 router.put('/products/:id', adminAuth, adminCtrl.updateProduct);
