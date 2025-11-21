@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 exports.memberAuth = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) {
-    req.member = null; // allow guests
+    req.member = null; 
     console.log("No auth token provided, treating as guest");
 
     return next();

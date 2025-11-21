@@ -107,9 +107,8 @@ exports.createBooking = async (req, res) => {
     }
 
     // -------- 4. Calculate price per hour and total rent --------
-    // -------- 4. Calculate price per hour and total rent --------
-    let diffHours = (end - start) / (1000 * 60 * 60); // actual hours, can be fractional
-    if (diffHours < 1) diffHours = 1; // minimum booking 1 hour
+    let diffHours = (end - start) / (1000 * 60 * 60); 
+    if (diffHours < 1) diffHours = 1; 
     console.log("diffHours:", diffHours);
 
     const pricePerHour =
