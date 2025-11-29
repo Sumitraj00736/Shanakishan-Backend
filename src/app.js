@@ -10,7 +10,7 @@ const expireHoldsJob = require('./jobs/expireHolds.job');
 const app = express();
 app.use(
   cors({
-    origin: ["https://sanakishandash.netlify.app", "http://localhost:5173", "http://192.168.1.29:5173"],
+    origin: '*',
     
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true, // if using cookies
