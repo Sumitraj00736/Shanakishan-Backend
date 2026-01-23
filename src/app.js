@@ -11,15 +11,18 @@ const app = express();
 app.use(
   cors({
     origin: '*',
-    
     methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true, // if using cookies
+    credentials: true,
   })
-);app.use(express.json());
+);
+app.use(express.json());
 
-// routes
+// 1. Specific routes MUST come first
 app.use('/api', publicRoutes);
 app.use('/api/admin', adminRoutes);
+
+// 2. Home route MUST use .get and be at the bottom
+app.get('/', (req, res) => { res.send('API is running perfectly'); });
 
 // global error handler
 app.use((err, req, res, next) => {
@@ -27,7 +30,9 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || 'Server error' });
 });
 
-const PORT = process.env.PORT || 4000;
+// 3. Ensure PORT can be set by cPanel/Passenger
+const PORT = process.env.PORT || 3000; 
+
 connectDB(process.env.MONGO_URI)
   .then(() => {
     app.listen(PORT, () => {
