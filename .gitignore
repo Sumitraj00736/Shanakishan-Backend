@@ -1,0 +1,7 @@
+# Add this line to your .gitignore
+.env
+.env.local
+.env.*.local
+# Ignore log files and directories
+logs/
+*.log       
