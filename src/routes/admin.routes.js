@@ -5,6 +5,7 @@ const categoryCtrl = require('../controllers/category.controller');
 const supportCtrl = require('../controllers/support.controller');
 const memberCtrl = require('../controllers/member.controller');
 const productCtrl = require('../controllers/product.controller');
+const notificationCtrl = require('../controllers/notification.controller');
 const { adminAuth } = require('../middlewares/auth');
 const upload = require('../middlewares/upload');
 // -------- Auth --------
@@ -15,6 +16,8 @@ router.get('/bookings', adminAuth, adminCtrl.listBookings);
 router.get('/bookings/:id', adminAuth, adminCtrl.getBooking);
 router.post('/bookings/:id/verify-payment', adminAuth, adminCtrl.verifyPayment);
 router.post('/bookings/:id/cancel', adminAuth, adminCtrl.cancelBooking);
+router.get('/analytics/overview', adminAuth, adminCtrl.analyticsOverview);
+router.get('/reports/bookings.csv', adminAuth, adminCtrl.downloadBookingsCsv);
 
 // -------- Products --------
 router.post('/products', adminAuth, upload.array('images', 10), productCtrl.createProduct);
@@ -39,5 +42,10 @@ router.delete('/members/:id', adminAuth, memberCtrl.deleteMember);
 // -------- Support Tickets --------
 router.get('/support', adminAuth, supportCtrl.listTickets);
 router.put('/support/:id', adminAuth, supportCtrl.updateTicket); 
+
+// -------- Notifications --------
+router.get("/notifications", adminAuth, notificationCtrl.listAdminNotifications);
+router.patch("/notifications/:id/read", adminAuth, notificationCtrl.markAdminNotificationRead);
+router.patch("/notifications/read-all", adminAuth, notificationCtrl.markAllAdminNotificationsRead);
 
 module.exports = router;

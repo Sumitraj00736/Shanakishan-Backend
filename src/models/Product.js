@@ -9,6 +9,7 @@ const ProductSchema = new mongoose.Schema({
   totalUnits: { type: Number, default: 1 },        // physical count
   maintenanceUnits: { type: Number, default: 0 },   // temporarily unavailable
   reservedUnits: { type: Number, default: 0 },      // units reserved (pending or confirmed)
+  status: { type: String, enum: ["available", "booked"], default: "available" },
   basePrice: { type: Number, required: true },     // non-member price
   memberPrice: { type: Number },                    // member price
   description: String,

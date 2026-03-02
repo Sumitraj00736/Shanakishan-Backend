@@ -63,7 +63,7 @@ exports.memberLogin = async (req, res) => {
 // List all members
 exports.listMembers = async (req, res) => {
   try {
-    const members = await Member.find({ isDeleted: false }).sort('-createdAt').limit(500);
+    const members = await Member.find().sort('-createdAt').limit(500);
     res.json(members);
   } catch (error) {
     console.error("Error fetching members:", error);
@@ -80,7 +80,7 @@ exports.getMember = async (req, res) => {
 
   try {
     const member = await Member.findById(id);
-    if (!member || member.isDeleted) return res.status(404).json({ message: "Member not found" });
+    if (!member) return res.status(404).json({ message: "Member not found" });
     res.json(member);
   } catch (error) {
     console.error("Error fetching member:", error);
@@ -109,7 +109,7 @@ exports.createMember = async (req, res) => {
 // Update member
 exports.updateMember = async (req, res) => {
   const { id } = req.params;
-  const { name, phone, email, status } = req.body;
+  const { name, phone, email, status, validUntil, discountPercent } = req.body;
 
   // Validate ObjectId
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -118,7 +118,7 @@ exports.updateMember = async (req, res) => {
 
   try {
     const member = await Member.findById(id);
-    if (!member || member.isDeleted) {
+    if (!member) {
       return res.status(404).json({ success: false, message: "Member not found" });
     }
 
@@ -142,14 +142,23 @@ exports.updateMember = async (req, res) => {
     }
 
     if (status) {
-      const allowedStatus = ["active", "inactive", "suspended"];
+      const allowedStatus = ["active", "suspended", "expired"];
       if(allowedStatus.indexOf(status) === -1){
         return res.status(400).json({ success: false, message: `Status must be one of: [${allowedStatus.join(", ")}]` });
       }
-      if (!allowedStatus.includes(status)) {
-        return res.status(400).json({ success: false, message: `Status must be one of: ${allowedStatus.join(", ")}` });
-      }
       member.status = status;
+    }
+
+    if (validUntil !== undefined) {
+      member.validUntil = validUntil ? new Date(validUntil) : null;
+    }
+
+    if (discountPercent !== undefined) {
+      const discount = Number(discountPercent);
+      if (Number.isNaN(discount) || discount < 0 || discount > 100) {
+        return res.status(400).json({ success: false, message: "Discount percent must be between 0 and 100" });
+      }
+      member.discountPercent = discount;
     }
 
     await member.save();

@@ -62,6 +62,9 @@ exports.createProduct = async (req, res) => {
       imageUrls = uploadResults.map((r) => r.secure_url);
     }
 
+    const normalizedTotalUnits = Number(totalUnits);
+    const initialReservedUnits = normalizedTotalUnits;
+
     const product = await Product.create({
       name,
       slug: slug || name.toLowerCase().replace(/\s+/g, "-"),
@@ -69,8 +72,10 @@ exports.createProduct = async (req, res) => {
       description: description || "",
       features: Array.isArray(features) ? features : [],
       images: imageUrls,
-      totalUnits,
+      totalUnits: normalizedTotalUnits,
+      reservedUnits: initialReservedUnits,
       maintenanceUnits: maintenanceUnits || 0,
+      status: initialReservedUnits > 0 ? "available" : "booked",
       basePrice,
       memberPrice: memberPrice || null,
       refundableDeposit: refundableDeposit || 0,

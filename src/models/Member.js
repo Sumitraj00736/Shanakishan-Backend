@@ -2,11 +2,9 @@ const mongoose = require('mongoose');
 
 const MemberSchema = new mongoose.Schema({
   memberId: { type: String, unique: true, required: true },
-  name: String,
-  phone: String,
+  name: { type: String, required: true },
+  phone: { type: String, required: true },
   email: String,
-  memberId: String,
-
   status: { type: String, enum: ['active','suspended','expired'], default: 'active' },
   validUntil: Date,
   discountPercent: { type: Number, default: 0 }

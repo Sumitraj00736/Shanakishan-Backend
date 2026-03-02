@@ -1,29 +1,8 @@
 const Booking = require("../models/Booking");
 const Product = require("../models/Product");
-const Member = require("../models/Member");
-const mongoose = require("mongoose");
+const { createNotification, sanitizeNotification } = require("../utils/notification");
 
-const HOLD_MINUTES = parseInt(process.env.HOLD_MINUTES || "15");
-
-function datesOverlap(aStart, aEnd, bStart, bEnd) {
-  return aStart <= bEnd && bStart <= aEnd;
-}
-
-// helper to compute reserved units for a product in date-range
-async function sumReservedForRange(productId, startDate, endDate) {
-  const bookings = await Booking.find({
-    productId,
-    status: { $in: ["pending", "confirmed"] },
-    $or: [
-      { startDate: { $lte: endDate, $gte: startDate } },
-      { endDate: { $lte: endDate, $gte: startDate } },
-      { startDate: { $lte: startDate }, endDate: { $gte: endDate } },
-    ],
-  });
-  let sum = 0;
-  for (const b of bookings) sum += b.quantity || 1;
-  return sum;
-}
+const HOLD_MINUTES = parseInt(process.env.HOLD_MINUTES || "15", 10);
 
 // Create booking: atomic reservation by updating product.reservedUnits with condition
 exports.createBooking = async (req, res) => {
@@ -55,62 +34,35 @@ exports.createBooking = async (req, res) => {
 
     // -------- 2. Find Product --------
     const product = await Product.findById(productId);
-    if (!product || !product.isActive) {
+    if (!product || !product.isActive || product.status === "booked") {
       return res
         .status(404)
-        .json({ success: false, message: "Product not found or inactive" });
+        .json({ success: false, message: "Currently not available" });
+    }
+
+    const qty = Number(quantity);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid quantity" });
+    }
+
+    if (product.reservedUnits < qty) {
+      return res.status(400).json({
+        success: false,
+        message: "Currently not available",
+      });
     }
 
     const start = new Date(startDateTime);
-    console.log("start:", start);
     const end = new Date(endDateTime);
-    console.log("end:", end);
     if (end <= start) {
-      console.log("Invalid date range: end is before or equal to start");
-      console.log("start:", start, "end:", end);
       return res
         .status(400)
         .json({ success: false, message: "End time must be after start time" });
     }
 
-    // -------- 3. Check overlapping bookings --------
-    const overlappingBookings = await Booking.aggregate([
-      {
-        $match: {
-          productId: product._id,
-          status: { $in: ["pending", "confirmed"] },
-          $or: [
-            { startDateTime: { $lt: end }, endDateTime: { $gt: start } }, // overlap condition
-          ],
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalReserved: { $sum: "$quantity" },
-        },
-      },
-    ]);
-
-    const reservedUnitsDuringRequestedTime =
-      overlappingBookings[0]?.totalReserved || 0;
-    const availableUnits =
-      product.totalUnits -
-      product.maintenanceUnits -
-      reservedUnitsDuringRequestedTime;
-
-    if (availableUnits < quantity) {
-      return res.status(400).json({
-        success: false,
-        message: `Only ${availableUnits} unit(s) available for the selected time`,
-      });
-    }
-
-    // -------- 4. Calculate price per hour and total rent --------
+    // -------- 3. Calculate price per hour and total rent --------
     let diffHours = (end - start) / (1000 * 60 * 60); 
     if (diffHours < 1) diffHours = 1; 
-    console.log("diffHours:", diffHours);
-
     const pricePerHour =
       memberId && product.memberPrice ? product.memberPrice : product.basePrice;
 
@@ -123,7 +75,7 @@ exports.createBooking = async (req, res) => {
         });
     }
 
-    const totalRent = pricePerHour * diffHours * quantity; // can now include fractional hours
+    const totalRent = pricePerHour * diffHours * qty;
 
     if (!totalRent || totalRent <= 0) {
       return res
@@ -131,24 +83,109 @@ exports.createBooking = async (req, res) => {
         .json({ success: false, message: "Total rent calculation failed" });
     }
 
-    // -------- 5. Create Booking --------
+    const nextReservedUnits = Math.max((product.reservedUnits || 0) - qty, 0);
+    product.reservedUnits = nextReservedUnits;
+    product.status = nextReservedUnits === 0 ? "booked" : "available";
+    await product.save();
+
+    // -------- 4. Create Booking --------
     const booking = await Booking.create({
       productId,
-      quantity,
+      quantity: qty,
       startDateTime: start,
       endDateTime: end,
       hours: diffHours,
       pricePerHour,
       totalRent,
+      totalAmount: totalRent, // backward compatibility for older consumers
       userName,
       userPhone,
       userEmail,
       memberId,
       refundableDeposit: product.refundableDeposit,
       status: "pending", // admin can confirm payment if needed
+      holdExpiresAt: new Date(Date.now() + HOLD_MINUTES * 60 * 1000),
     });
 
-    // -------- 6. Response --------
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("booking:created", { booking });
+      io.emit("product:updated", {
+        productId: product._id,
+        reservedUnits: product.reservedUnits,
+        totalUnits: product.totalUnits,
+        status: product.status,
+      });
+      const adminNotification = await createNotification({
+        audienceType: "admin",
+        type: "booking",
+        event: "created",
+        title: "New Booking",
+        message: `New booking by ${booking.userName || booking.userPhone || "user"}`,
+        status: booking.status,
+        data: {
+          booking,
+          product: {
+            _id: product._id,
+            name: product.name,
+          },
+        },
+      });
+      io.emit("admin:booking-notification", {
+        bookingId: booking._id,
+        status: booking.status,
+        message: `New booking by ${booking.userName || booking.userPhone || "user"}`,
+        booking,
+        notification: sanitizeNotification(adminNotification),
+      });
+      const payload = {
+        bookingId: booking._id,
+        message: `You booked ${product.name}`,
+        status: booking.status,
+        booking,
+      };
+      const detailData = {
+        booking,
+        product: {
+          _id: product._id,
+          name: product.name,
+        },
+      };
+      if (booking.memberId) {
+        const notification = await createNotification({
+          audienceType: "member",
+          memberId: booking.memberId,
+          type: "booking",
+          event: "booked",
+          title: "Booking Placed",
+          message: `You booked ${product.name}. Status: ${booking.status}`,
+          status: booking.status,
+          data: detailData,
+        });
+        io.to(`member:${booking.memberId}`).emit("user:booking-notification", {
+          ...payload,
+          notification: sanitizeNotification(notification),
+        });
+      }
+      if (booking.userPhone) {
+        const notification = await createNotification({
+          audienceType: "guest",
+          guestPhone: booking.userPhone,
+          type: "booking",
+          event: "booked",
+          title: "Booking Placed",
+          message: `You booked ${product.name}. Status: ${booking.status}`,
+          status: booking.status,
+          data: detailData,
+        });
+        io.to(`guest:${booking.userPhone}`).emit("user:booking-notification", {
+          ...payload,
+          notification: sanitizeNotification(notification),
+        });
+      }
+    }
+
+    // -------- 5. Response --------
     return res.json({
       success: true,
       message: "Booking created successfully",
