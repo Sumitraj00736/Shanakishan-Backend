@@ -1,7 +1,23 @@
 const Booking = require("../models/Booking");
 const Product = require("../models/Product");
+const cloudinary = require("../config/cloudinary");
+const bcrypt = require("bcrypt");
+const Admin = require("../models/Admin");
 const { buildBookingsCsv } = require("../utils/csv");
 const { createNotification, sanitizeNotification } = require("../utils/notification");
+
+function uploadToCloudinary(fileBuffer) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: "products" },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+    stream.end(fileBuffer);
+  });
+}
 
 function parseStatus(statusParam) {
   if (!statusParam) return null;
@@ -251,15 +267,48 @@ exports.createProduct = async (req, res) => {
 };
 
 exports.updateProduct = async (req, res) => {
-  const payload = { ...req.body };
-  if (payload.totalUnits !== undefined && payload.reservedUnits === undefined) {
-    payload.reservedUnits = Number(payload.totalUnits);
+  try {
+    const payload = { ...req.body };
+
+    if (req.files?.length) {
+      const uploadResults = await Promise.all(
+        req.files.map((file) => uploadToCloudinary(file.buffer))
+      );
+      payload.images = uploadResults.map((result) => result.secure_url);
+    }
+
+    if (payload.totalUnits !== undefined) {
+      payload.totalUnits = Number(payload.totalUnits);
+    }
+
+    if (payload.reservedUnits !== undefined) {
+      payload.reservedUnits = Number(payload.reservedUnits);
+    } else if (payload.totalUnits !== undefined) {
+      payload.reservedUnits = Number(payload.totalUnits);
+    }
+
+    if (payload.basePrice !== undefined) {
+      payload.basePrice = Number(payload.basePrice);
+    }
+
+    if (payload.memberPrice !== undefined && payload.memberPrice !== "") {
+      payload.memberPrice = Number(payload.memberPrice);
+    }
+
+    if (payload.memberPrice === "") {
+      payload.memberPrice = null;
+    }
+
+    if (payload.reservedUnits !== undefined) {
+      payload.status = Number(payload.reservedUnits) <= 0 ? "booked" : "available";
+    }
+
+    const p = await Product.findByIdAndUpdate(req.params.id, payload, { new: true });
+    res.json(p);
+  } catch (error) {
+    console.error("Error updating product:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
-  if (payload.reservedUnits !== undefined) {
-    payload.status = Number(payload.reservedUnits) <= 0 ? "booked" : "available";
-  }
-  const p = await Product.findByIdAndUpdate(req.params.id, payload, { new: true });
-  res.json(p);
 };
 
 exports.listMembers = async (req, res) => {
@@ -368,4 +417,58 @@ exports.downloadBookingsCsv = async (req, res) => {
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="bookings-report-${timestamp}.csv"`);
   res.status(200).send(csv);
+};
+
+exports.deleteBooking = async (req, res) => {
+  const { id } = req.params;
+  const { password } = req.body;
+
+  try {
+    if (!password) {
+      return res.status(400).json({ success: false, message: "Password is required" });
+    }
+
+    const admin = await Admin.findById(req.admin.id);
+    const isMatch = await bcrypt.compare(password, admin.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: "Incorrect password" });
+    }
+
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    await booking.deleteOne();
+    res.json({ success: true, message: "Booking deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting booking:", error);
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+};
+
+exports.deleteBookings = async (req, res) => {
+  const { ids, password } = req.body;
+
+  try {
+    if (!password) {
+      return res.status(400).json({ success: false, message: "Password is required" });
+    }
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: "No booking IDs provided" });
+    }
+
+    const admin = await Admin.findById(req.admin.id);
+    const isMatch = await bcrypt.compare(password, admin.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: "Incorrect password" });
+    }
+
+    await Booking.deleteMany({ _id: { $in: ids } });
+    res.json({ success: true, message: "Bookings deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting bookings:", error);
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
 };

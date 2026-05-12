@@ -16,12 +16,14 @@ router.get('/bookings', adminAuth, adminCtrl.listBookings);
 router.get('/bookings/:id', adminAuth, adminCtrl.getBooking);
 router.post('/bookings/:id/verify-payment', adminAuth, adminCtrl.verifyPayment);
 router.post('/bookings/:id/cancel', adminAuth, adminCtrl.cancelBooking);
+router.delete('/bookings/:id', adminAuth, adminCtrl.deleteBooking);
+router.delete('/bookings', adminAuth, adminCtrl.deleteBookings);
 router.get('/analytics/overview', adminAuth, adminCtrl.analyticsOverview);
 router.get('/reports/bookings.csv', adminAuth, adminCtrl.downloadBookingsCsv);
 
 // -------- Products --------
 router.post('/products', adminAuth, upload.array('images', 10), productCtrl.createProduct);
-router.put('/products/:id', adminAuth, adminCtrl.updateProduct);
+router.put('/products/:id', adminAuth, upload.array('images', 10), adminCtrl.updateProduct);
 router.get('/products/category/:id',adminAuth, productCtrl.listProductsByCategory)
 router.delete('/products/:id', adminAuth, adminCtrl.deleteProduct);
 
@@ -42,6 +44,8 @@ router.delete('/members/:id', adminAuth, memberCtrl.deleteMember);
 // -------- Support Tickets --------
 router.get('/support', adminAuth, supportCtrl.listTickets);
 router.put('/support/:id', adminAuth, supportCtrl.updateTicket); 
+router.delete('/support/:id', adminAuth, supportCtrl.deleteTicket);
+router.delete('/support', adminAuth, supportCtrl.deleteTickets);
 
 // -------- Notifications --------
 router.get("/notifications", adminAuth, notificationCtrl.listAdminNotifications);

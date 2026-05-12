@@ -1,4 +1,6 @@
 const Support = require('../models/SupportTicket');
+const bcrypt = require("bcrypt");
+const Admin = require("../models/Admin");
 const { createNotification, sanitizeNotification } = require("../utils/notification");
 // List all support tickets
 exports.listTickets = async (req,res) => {
@@ -172,4 +174,58 @@ exports.updateTicket = async (req,res) => {
   }
 
   res.json({ message: 'Ticket updated', ticket });
+};
+
+exports.deleteTicket = async (req, res) => {
+  const { id } = req.params;
+  const { password } = req.body;
+
+  try {
+    if (!password) {
+      return res.status(400).json({ success: false, message: "Password is required" });
+    }
+
+    const admin = await Admin.findById(req.admin.id);
+    const isMatch = await bcrypt.compare(password, admin.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: "Incorrect password" });
+    }
+
+    const ticket = await Support.findById(id);
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: "Ticket not found" });
+    }
+
+    await ticket.deleteOne();
+    res.json({ success: true, message: "Ticket deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting ticket:", error);
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+};
+
+exports.deleteTickets = async (req, res) => {
+  const { ids, password } = req.body;
+
+  try {
+    if (!password) {
+      return res.status(400).json({ success: false, message: "Password is required" });
+    }
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: "No ticket IDs provided" });
+    }
+
+    const admin = await Admin.findById(req.admin.id);
+    const isMatch = await bcrypt.compare(password, admin.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: "Incorrect password" });
+    }
+
+    await Support.deleteMany({ _id: { $in: ids } });
+    res.json({ success: true, message: "Tickets deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting tickets:", error);
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
 };
